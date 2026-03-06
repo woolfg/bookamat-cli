@@ -11,13 +11,17 @@ install: ## Install dependencies
 build: ## Build the project
 	npm run build
 
-.PHONY: start
-start: ## Start the MCP server
-	npm start
+.PHONY: link
+link: build ## Build and link 'bookamat' globally (run once after checkout)
+	npm link
+
+.PHONY: unlink
+unlink: ## Remove the global 'bookamat' symlink
+	npm unlink -g bookamat-cli
 
 .PHONY: dev
-dev: ## Start the MCP server in development mode
-	npm run dev
+dev: ## Run CLI without building via tsx, e.g. make dev ARGS="bookings list"
+	npx tsx src/index.ts $(ARGS)
 
 .PHONY: clean
 clean: ## Remove build artifacts and node_modules

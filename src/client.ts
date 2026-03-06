@@ -26,6 +26,7 @@ export class BookamatClient {
     private username: string,
     country?: string,
     year?: string | number,
+    private readOnly: boolean = false,
   ) {
     this.country = country;
     this.year = year;
@@ -137,6 +138,17 @@ export class BookamatClient {
   }
 
   async createBooking(data: CreateBookingRequest): Promise<Booking> {
+    if (this.readOnly) {
+      console.log(`[ReadOnly] createBooking: ${JSON.stringify(data, null, 2)}`);
+      // Mock response
+      return {
+        id: 999999,
+        status: "1",
+        title: data.title,
+        date: data.date,
+        amounts: data.amounts.map((a) => ({ ...a, group: "2" }) as any),
+      } as Booking;
+    }
     const response = await this.client.post<Booking>(
       this.getContextUrl("bookings/"),
       data,
@@ -148,6 +160,19 @@ export class BookamatClient {
     id: number,
     data: Partial<CreateBookingRequest>,
   ): Promise<Booking> {
+    if (this.readOnly) {
+      console.log(
+        `[ReadOnly] updateBooking (${id}): ${JSON.stringify(data, null, 2)}`,
+      );
+      return {
+        id,
+        status: "1",
+        title: data.title || "Mock Title",
+        date: data.date || "2023-01-01",
+        amounts: [],
+      } as Booking;
+    }
+    // Using PATCH by default for partial updates
     // Using PATCH by default for partial updates
     const response = await this.client.patch<Booking>(
       this.getContextUrl(`bookings/${id}/`),
@@ -157,6 +182,10 @@ export class BookamatClient {
   }
 
   async deleteBooking(id: number): Promise<void> {
+    if (this.readOnly) {
+      console.log(`[ReadOnly] deleteBooking: ${id}`);
+      return;
+    }
     await this.client.delete(this.getContextUrl(`bookings/${id}/`));
   }
 
@@ -170,6 +199,22 @@ export class BookamatClient {
   }
 
   async createInventory(data: CreateInventoryRequest): Promise<Inventory> {
+    if (this.readOnly) {
+      console.log(
+        `[ReadOnly] createInventory: ${JSON.stringify(data, null, 2)}`,
+      );
+      return {
+        id: 888888,
+        title: data.title,
+        date_purchase: data.date_purchase,
+        date_commissioning: data.date_commissioning,
+        amount_after_tax: data.amount_after_tax,
+        deductibility_years: data.deductibility_years,
+        deductibility_type: data.deductibility_type,
+        deductibility_percent: data.deductibility_percent || "100.00",
+        costaccount: data.costaccount,
+      } as any as Inventory;
+    }
     const response = await this.client.post<Inventory>(
       this.getContextUrl("inventories/"),
       data,
@@ -194,6 +239,17 @@ export class BookamatClient {
     name: string,
     base64File: string,
   ): Promise<Attachment> {
+    if (this.readOnly) {
+      console.log(
+        `[ReadOnly] uploadBookingAttachment (${bookingId}, ${name}) - File content length: ${base64File.length}`,
+      );
+      return {
+        id: 777777,
+        name: name,
+        size: base64File.length,
+        booking: bookingId,
+      };
+    }
     const response = await this.client.post<Attachment>(
       this.getContextUrl("bookings/attachments/"),
       {

@@ -126,6 +126,21 @@ bookamat --json bookings list --date-from 2026-01-01 --date-until 2026-12-31
 bookamat --json master-data list bank-accounts
 ```
 
+### LLM self-discovery via `schema`
+
+Run `bookamat schema` once to get a full JSON description of every command, all options, their types, and whether each command is read-only or a write operation:
+
+```bash
+bookamat schema
+```
+
+An LLM should call this at the start of a session to understand the entire API surface before issuing any other commands. The schema includes:
+
+- Every command with its full syntax
+- All flags, their types, and whether they are required
+- A `readonly` field on each command (`true` = safe, `false` = modifies data)
+- A top-level description with usage hints (always use `--json`, what `--read-only` does)
+
 ### Read-only mode
 
 Set `BOOKAMAT_READ_ONLY=true` in `.env` (or pass `--read-only`) to block all write operations. Any command that modifies data will exit with an error before touching the API. Useful when giving an LLM access to the CLI.

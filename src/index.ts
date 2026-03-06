@@ -104,6 +104,281 @@ program
   .option("--json", "Output raw JSON (machine-readable, ideal for LLMs)");
 
 // ---------------------------------------------------------------------------
+// schema  – machine-readable command reference for LLMs
+// ---------------------------------------------------------------------------
+
+const SCHEMA = {
+  description:
+    "bookamat-cli – CLI for the Bookamat accounting API. " +
+    "Always pass --json for machine-readable output. " +
+    "Read-only commands never modify data. " +
+    "Write commands are blocked when BOOKAMAT_READ_ONLY=true.",
+  global_options: [
+    {
+      flag: "--api-key <key>",
+      description: "Bookamat API key (or BOOKAMAT_API_KEY env var)",
+    },
+    {
+      flag: "--username <user>",
+      description: "Bookamat username (or BOOKAMAT_USERNAME env var)",
+    },
+    {
+      flag: "--country <cc>",
+      description:
+        "Country code e.g. 'at' (or BOOKAMAT_COUNTRY). Auto-detected if omitted.",
+    },
+    {
+      flag: "--year <yyyy>",
+      description:
+        "Accounting year e.g. '2025' (or BOOKAMAT_YEAR). Defaults to latest.",
+    },
+    {
+      flag: "--read-only",
+      description: "Block all write commands (or BOOKAMAT_READ_ONLY=true)",
+    },
+    {
+      flag: "--json",
+      description: "Output raw JSON – use this flag in all LLM interactions",
+    },
+  ],
+  commands: [
+    {
+      command: "bookamat accounts",
+      description:
+        "List all available user accounts (country/year combinations). Useful to discover valid --country and --year values.",
+      readonly: true,
+      options: [],
+    },
+    {
+      command: "bookamat bookings list",
+      description:
+        "List bookings (invoices and expenses). Supports date range and title filters.",
+      readonly: true,
+      options: [
+        {
+          flag: "--date-from <YYYY-MM-DD>",
+          type: "string",
+          description: "Filter: earliest booking date (inclusive)",
+        },
+        {
+          flag: "--date-until <YYYY-MM-DD>",
+          type: "string",
+          description: "Filter: latest booking date (inclusive)",
+        },
+        {
+          flag: "--title <text>",
+          type: "string",
+          description: "Filter: title contains text",
+        },
+        {
+          flag: "--limit <n>",
+          type: "number",
+          default: 100,
+          description: "Results per page",
+        },
+        {
+          flag: "--page <n>",
+          type: "number",
+          default: 1,
+          description: "Page number",
+        },
+      ],
+    },
+    {
+      command: "bookamat bookings get <id>",
+      description: "Get a single booking by its numeric ID.",
+      readonly: true,
+      options: [],
+    },
+    {
+      command: "bookamat bookings create",
+      description:
+        "Create a new booking. Requires master data IDs (run 'bookamat master-data list' first).",
+      readonly: false,
+      options: [
+        {
+          flag: "--title <text>",
+          type: "string",
+          required: true,
+          description: "Booking title (max 50 chars)",
+        },
+        {
+          flag: "--date <YYYY-MM-DD>",
+          type: "string",
+          required: true,
+          description: "Booking date",
+        },
+        {
+          flag: "--description <text>",
+          type: "string",
+          required: false,
+          description: "Optional description (max 500 chars)",
+        },
+        {
+          flag: "--costcentre <id>",
+          type: "number",
+          required: false,
+          description: "Cost centre ID",
+        },
+        {
+          flag: "--amounts <json>",
+          type: "json-array",
+          required: true,
+          description:
+            "Array of amount objects. Each object: { bankaccount: number, costaccount: number, purchasetaxaccount: number, amount: string (e.g. '119.00'), tax_percent: string (e.g. '20.00'), deductibility_tax_percent?: string, deductibility_amount_percent?: string }",
+        },
+      ],
+    },
+    {
+      command: "bookamat bookings update <id>",
+      description: "Partially update an existing booking.",
+      readonly: false,
+      options: [
+        { flag: "--title <text>", type: "string", description: "New title" },
+        {
+          flag: "--date <YYYY-MM-DD>",
+          type: "string",
+          description: "New date",
+        },
+        {
+          flag: "--description <text>",
+          type: "string",
+          description: "New description",
+        },
+        {
+          flag: "--amounts <json>",
+          type: "json-array",
+          description: "Replace amounts array",
+        },
+      ],
+    },
+    {
+      command: "bookamat bookings delete <id>",
+      description: "Delete a booking by its numeric ID.",
+      readonly: false,
+      options: [],
+    },
+    {
+      command: "bookamat master-data list <type>",
+      description:
+        "List master data records. Returns IDs needed for creating bookings and inventories.",
+      readonly: true,
+      options: [
+        {
+          flag: "<type>",
+          type: "enum",
+          values: [
+            "bank-accounts",
+            "cost-accounts",
+            "tax-accounts",
+            "cost-centres",
+            "tags",
+            "foreign-business-bases",
+          ],
+          description: "Type of master data to retrieve",
+        },
+      ],
+    },
+    {
+      command: "bookamat inventories list",
+      description: "List all inventory assets (Anlagen).",
+      readonly: true,
+      options: [],
+    },
+    {
+      command: "bookamat inventories create",
+      description: "Create a new inventory asset.",
+      readonly: false,
+      options: [
+        {
+          flag: "--title <text>",
+          type: "string",
+          required: true,
+          description: "Asset title",
+        },
+        {
+          flag: "--date-purchase <YYYY-MM-DD>",
+          type: "string",
+          required: true,
+          description: "Purchase date",
+        },
+        {
+          flag: "--date-commissioning <YYYY-MM-DD>",
+          type: "string",
+          required: true,
+          description: "Commissioning date",
+        },
+        {
+          flag: "--amount <value>",
+          type: "string",
+          required: true,
+          description: "Amount after tax, e.g. '1200.00'",
+        },
+        {
+          flag: "--years <n>",
+          type: "number",
+          required: true,
+          description: "Deductibility period in years",
+        },
+        {
+          flag: "--type <n>",
+          type: "enum",
+          required: true,
+          values: [1, 2, 3, 4],
+          description:
+            "Deductibility type: 1=Linear, 2=Immediate, 3=None, 4=Degressive",
+        },
+        {
+          flag: "--costaccount <id>",
+          type: "number",
+          required: true,
+          description: "Cost account ID",
+        },
+        {
+          flag: "--description <text>",
+          type: "string",
+          required: false,
+          description: "Optional description",
+        },
+      ],
+    },
+    {
+      command: "bookamat attachments list",
+      description: "List booking attachments.",
+      readonly: true,
+      options: [
+        {
+          flag: "--booking <id>",
+          type: "number",
+          description: "Filter by booking ID",
+        },
+      ],
+    },
+    {
+      command: "bookamat attachments upload <booking-id> <file-path>",
+      description:
+        "Upload a local file as an attachment to a booking. The file is base64-encoded automatically.",
+      readonly: false,
+      options: [],
+    },
+    {
+      command: "bookamat schema",
+      description:
+        "Print this schema as JSON. Call this once to discover all available commands, options, and types.",
+      readonly: true,
+      options: [],
+    },
+  ],
+};
+
+program
+  .command("schema")
+  .description("Print the full command schema as JSON (for LLM self-discovery)")
+  .action(() => {
+    console.log(JSON.stringify(SCHEMA, null, 2));
+  });
+
+// ---------------------------------------------------------------------------
 // accounts
 // ---------------------------------------------------------------------------
 

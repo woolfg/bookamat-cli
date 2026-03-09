@@ -102,8 +102,15 @@ export interface Booking {
 
 export interface CreateBookingRequest {
   title: string;
-  date: string;
+  date?: string;
+  date_invoice?: string;
+  date_delivery?: string;
+  date_order?: string;
   costcentre?: number;
+  vatin?: string;
+  country?: string;
+  description?: string;
+  tags?: number[];
   amounts: {
     bankaccount: number;
     costaccount: number;
@@ -116,9 +123,6 @@ export interface CreateBookingRequest {
     country_dep?: string;
     country_rec?: string;
   }[];
-  vatin?: string;
-  country?: string;
-  description?: string;
 }
 
 export interface Inventory {

@@ -250,8 +250,26 @@ const SCHEMA = {
         {
           flag: "--date <YYYY-MM-DD>",
           type: "string",
-          required: true,
-          description: "Booking date",
+          required: false,
+          description: "Booking date. Omit to create an open booking.",
+        },
+        {
+          flag: "--date-invoice <YYYY-MM-DD>",
+          type: "string",
+          required: false,
+          description: "Invoice date",
+        },
+        {
+          flag: "--date-delivery <YYYY-MM-DD>",
+          type: "string",
+          required: false,
+          description: "Delivery date",
+        },
+        {
+          flag: "--date-order <YYYY-MM-DD>",
+          type: "string",
+          required: false,
+          description: "Order date",
         },
         {
           flag: "--description <text>",
@@ -264,6 +282,25 @@ const SCHEMA = {
           type: "number",
           required: false,
           description: "Cost centre ID",
+        },
+        {
+          flag: "--vatin <text>",
+          type: "string",
+          required: false,
+          description:
+            "VAT identification number of the business partner (max 20 chars)",
+        },
+        {
+          flag: "--country <cc>",
+          type: "string",
+          required: false,
+          description: "Country code of the business partner, e.g. 'DE'",
+        },
+        {
+          flag: "--tags <json>",
+          type: "json-array",
+          required: false,
+          description: "Array of tag IDs to attach, e.g. '[5680,5681]'",
         },
         {
           flag: "--amounts <json>",
@@ -283,12 +320,42 @@ const SCHEMA = {
         {
           flag: "--date <YYYY-MM-DD>",
           type: "string",
-          description: "New date",
+          description: "New booking date",
+        },
+        {
+          flag: "--date-invoice <YYYY-MM-DD>",
+          type: "string",
+          description: "New invoice date",
+        },
+        {
+          flag: "--date-delivery <YYYY-MM-DD>",
+          type: "string",
+          description: "New delivery date",
+        },
+        {
+          flag: "--date-order <YYYY-MM-DD>",
+          type: "string",
+          description: "New order date",
         },
         {
           flag: "--description <text>",
           type: "string",
           description: "New description",
+        },
+        {
+          flag: "--vatin <text>",
+          type: "string",
+          description: "VAT identification number",
+        },
+        {
+          flag: "--country <cc>",
+          type: "string",
+          description: "Country code of the business partner",
+        },
+        {
+          flag: "--tags <json>",
+          type: "json-array",
+          description: "Replace tags array, e.g. '[5680]'",
         },
         {
           flag: "--amounts <json>",
@@ -494,9 +561,15 @@ bookingsCmd
   .command("create")
   .description("Create a new booking")
   .requiredOption("--title <text>", "Booking title (max 50 chars)")
-  .requiredOption("--date <YYYY-MM-DD>", "Booking date")
+  .option("--date <YYYY-MM-DD>", "Booking date (omit for open booking)")
+  .option("--date-invoice <YYYY-MM-DD>", "Invoice date")
+  .option("--date-delivery <YYYY-MM-DD>", "Delivery date")
+  .option("--date-order <YYYY-MM-DD>", "Order date")
   .option("--description <text>", "Description (max 500 chars)")
   .option("--costcentre <id>", "Cost centre ID")
+  .option("--vatin <text>", "VAT identification number (max 20 chars)")
+  .option("--country <cc>", "Country code of the business partner, e.g. DE")
+  .option("--tags <json>", "Array of tag IDs as JSON, e.g. '[5680,5681]'")
   .option(
     "--amounts <json>",
     'Amounts array as JSON string, e.g. \'[{"bankaccount":1,"costaccount":2,"purchasetaxaccount":3,"amount":"100.00","tax_percent":"20.00"}]\'',
@@ -514,11 +587,27 @@ bookingsCmd
       process.exit(1);
     }
 
-    const payload = {
+    let tags: number[] | undefined;
+    if (opts.tags) {
+      try {
+        tags = JSON.parse(opts.tags);
+      } catch {
+        console.error("Error: --tags must be a valid JSON array of IDs.");
+        process.exit(1);
+      }
+    }
+
+    const payload: any = {
       title: opts.title,
-      date: opts.date,
+      ...(opts.date ? { date: opts.date } : {}),
+      ...(opts.dateInvoice ? { date_invoice: opts.dateInvoice } : {}),
+      ...(opts.dateDelivery ? { date_delivery: opts.dateDelivery } : {}),
+      ...(opts.dateOrder ? { date_order: opts.dateOrder } : {}),
       description: opts.description,
       costcentre: opts.costcentre ? parseInt(opts.costcentre) : undefined,
+      ...(opts.vatin ? { vatin: opts.vatin } : {}),
+      ...(opts.country ? { country: opts.country } : {}),
+      ...(tags ? { tags } : {}),
       amounts: amounts.map((a: any) => ({
         bankaccount: a.bankaccount,
         costaccount: a.costaccount,
@@ -546,7 +635,13 @@ bookingsCmd
   .description("Update an existing booking (partial)")
   .option("--title <text>")
   .option("--date <YYYY-MM-DD>")
+  .option("--date-invoice <YYYY-MM-DD>", "Invoice date")
+  .option("--date-delivery <YYYY-MM-DD>", "Delivery date")
+  .option("--date-order <YYYY-MM-DD>", "Order date")
   .option("--description <text>")
+  .option("--vatin <text>", "VAT identification number")
+  .option("--country <cc>", "Country code of the business partner")
+  .option("--tags <json>", "Replace tags array, e.g. '[5680,5681]'")
   .option("--amounts <json>", "Amounts array as JSON string")
   .action(async (id: string, opts) => {
     const g = program.opts();
@@ -556,7 +651,20 @@ bookingsCmd
     const patch: any = {};
     if (opts.title) patch.title = opts.title;
     if (opts.date) patch.date = opts.date;
+    if (opts.dateInvoice) patch.date_invoice = opts.dateInvoice;
+    if (opts.dateDelivery) patch.date_delivery = opts.dateDelivery;
+    if (opts.dateOrder) patch.date_order = opts.dateOrder;
     if (opts.description) patch.description = opts.description;
+    if (opts.vatin) patch.vatin = opts.vatin;
+    if (opts.country) patch.country = opts.country;
+    if (opts.tags) {
+      try {
+        patch.tags = JSON.parse(opts.tags);
+      } catch {
+        console.error("Error: --tags must be a valid JSON array of IDs.");
+        process.exit(1);
+      }
+    }
     if (opts.amounts) {
       try {
         patch.amounts = JSON.parse(opts.amounts);

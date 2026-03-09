@@ -55,24 +55,33 @@ bookamat accounts
 #### `bookings`
 
 ```bash
-# List all bookings
+# List all bookings (all pages fetched automatically)
 bookamat bookings list
 
 # Filter by date range or title
 bookamat bookings list --date-from 2026-01-01 --date-until 2026-12-31
 bookamat bookings list --title "Office"
 
+# Fetch a single page explicitly
+bookamat bookings list --limit 50 --page 2
+
 # Get a single booking
 bookamat bookings get <id>
 
-# Create a booking
+# Create a booking (--date omitted = open booking)
 bookamat bookings create \
   --title "Office supplies" \
   --date 2026-03-01 \
+  --date-invoice 2026-02-28 \
+  --vatin "DE123456789" \
+  --country DE \
+  --tags '[5680]' \
   --amounts '[{"bankaccount":1,"costaccount":5,"purchasetaxaccount":2,"amount":"119.00","tax_percent":"20.00"}]'
 
-# Update a booking (partial)
+# Update a booking (partial – only supplied fields are changed)
 bookamat bookings update <id> --title "New title"
+bookamat bookings update <id> --date-invoice 2026-02-28 --vatin "DE123456789"
+bookamat bookings update <id> --tags '[5680,5681]'
 
 # Delete a booking
 bookamat bookings delete <id>

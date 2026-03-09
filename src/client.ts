@@ -132,11 +132,7 @@ export class BookamatClient {
   // --- Bookings ---
 
   async getBookings(params?: any): Promise<Booking[]> {
-    const response = await this.client.get<PaginatedResponse<Booking>>(
-      this.getContextUrl("bookings/"),
-      { params },
-    );
-    return response.data.results;
+    return this.fetchAll<Booking>(this.getContextUrl("bookings/"), params);
   }
 
   async getBooking(id: number): Promise<Booking> {

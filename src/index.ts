@@ -195,7 +195,9 @@ const SCHEMA = {
     {
       command: "bookamat bookings list",
       description:
-        "List bookings (invoices and expenses). Supports date range and title filters.",
+        "List bookings (invoices and expenses). Supports date range and title filters. " +
+        "By default all pages are fetched automatically and the full result set is returned. " +
+        "Use --limit to fetch a single page instead (API maximum is 100 per page).",
       readonly: true,
       options: [
         {
@@ -216,14 +218,14 @@ const SCHEMA = {
         {
           flag: "--limit <n>",
           type: "number",
-          default: 100,
-          description: "Results per page",
+          description:
+            "Fetch only a single page with this many results (max 100 per API). Omit to get all bookings.",
         },
         {
           flag: "--page <n>",
           type: "number",
           default: 1,
-          description: "Page number",
+          description: "Page number (only used together with --limit)",
         },
       ],
     },
@@ -456,18 +458,25 @@ bookingsCmd
   .option("--date-from <YYYY-MM-DD>", "Filter: earliest date (inclusive)")
   .option("--date-until <YYYY-MM-DD>", "Filter: latest date (inclusive)")
   .option("--title <text>", "Filter: title contains text")
-  .option("--limit <n>", "Max results per page", "100")
-  .option("--page <n>", "Page number", "1")
+  .option(
+    "--limit <n>",
+    "Fetch only a single page with this many results (max 100 per API)",
+  )
+  .option("--page <n>", "Page number (only used together with --limit)", "1")
   .action(async (opts) => {
     const g = program.opts();
     const client = await getClient(g);
-    const bookings = await client.getBookings({
+    const params: any = {
       date_from: opts.dateFrom,
       date_until: opts.dateUntil,
       title: opts.title,
-      limit: parseInt(opts.limit),
-      page: parseInt(opts.page),
-    });
+    };
+    if (opts.limit) {
+      // Single-page mode
+      params.limit = parseInt(opts.limit);
+      params.page = parseInt(opts.page);
+    }
+    const bookings = await client.getBookings(params);
     output(bookings, !!g.json);
   });
 

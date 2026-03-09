@@ -519,7 +519,9 @@ bookingsCmd
         deductibility_tax_percent: a.deductibility_tax_percent ?? "100.00",
         deductibility_amount_percent:
           a.deductibility_amount_percent ?? "100.00",
-        foreign_business_base: a.foreign_business_base ?? null,
+        ...(a.foreign_business_base != null
+          ? { foreign_business_base: a.foreign_business_base }
+          : {}),
         country_dep: a.country_dep,
         country_rec: a.country_rec,
       })),

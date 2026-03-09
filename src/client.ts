@@ -47,6 +47,23 @@ export class BookamatClient {
     this.year = year;
   }
 
+  /** Fetch all pages of a paginated endpoint and return the combined results. */
+  private async fetchAll<T>(url: string, params: any = {}): Promise<T[]> {
+    const results: T[] = [];
+    let nextUrl: string | null = url;
+    while (nextUrl) {
+      const response = await this.client.get<PaginatedResponse<T>>(nextUrl, {
+        params: nextUrl === url ? params : undefined,
+      });
+      results.push(...response.data.results);
+      // next is either a full URL or null
+      nextUrl = response.data.next
+        ? response.data.next.replace(this.baseUrl, "")
+        : null;
+    }
+    return results;
+  }
+
   private getContextUrl(path: string): string {
     const p = path.startsWith("/") ? path.substring(1) : path;
 
@@ -76,48 +93,40 @@ export class BookamatClient {
   // --- Master Data ---
 
   async getBankAccounts(): Promise<BankAccount[]> {
-    const response = await this.client.get<PaginatedResponse<BankAccount>>(
+    return this.fetchAll<BankAccount>(
       this.getContextUrl("preferences/bankaccounts/"),
     );
-    return response.data.results;
   }
 
   async getCostAccounts(group?: "1" | "2"): Promise<CostAccount[]> {
     const params: any = {};
     if (group) params.group = group;
-    const response = await this.client.get<PaginatedResponse<CostAccount>>(
+    return this.fetchAll<CostAccount>(
       this.getContextUrl("preferences/costaccounts/"),
-      { params },
+      params,
     );
-    return response.data.results;
   }
 
   async getPurchaseTaxAccounts(): Promise<PurchaseTaxAccount[]> {
-    const response = await this.client.get<
-      PaginatedResponse<PurchaseTaxAccount>
-    >(this.getContextUrl("preferences/purchasetaxaccounts/"));
-    return response.data.results;
+    return this.fetchAll<PurchaseTaxAccount>(
+      this.getContextUrl("preferences/purchasetaxaccounts/"),
+    );
   }
 
   async getCostCentres(): Promise<CostCentre[]> {
-    const response = await this.client.get<PaginatedResponse<CostCentre>>(
+    return this.fetchAll<CostCentre>(
       this.getContextUrl("preferences/costcentres/"),
     );
-    return response.data.results;
   }
 
   async getForeignBusinessBases(): Promise<ForeignBusinessBase[]> {
-    const response = await this.client.get<
-      PaginatedResponse<ForeignBusinessBase>
-    >(this.getContextUrl("preferences/foreignbusinessbases/"));
-    return response.data.results;
+    return this.fetchAll<ForeignBusinessBase>(
+      this.getContextUrl("preferences/foreignbusinessbases/"),
+    );
   }
 
   async getTags(): Promise<Tag[]> {
-    const response = await this.client.get<PaginatedResponse<Tag>>(
-      this.getContextUrl("preferences/tags/"),
-    );
-    return response.data.results;
+    return this.fetchAll<Tag>(this.getContextUrl("preferences/tags/"));
   }
 
   // --- Bookings ---

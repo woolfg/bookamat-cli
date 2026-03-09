@@ -54,14 +54,13 @@ async function confirmWrite(action: string, payload: unknown): Promise<void> {
   console.error(
     `   Payload: ${JSON.stringify(payload, null, 2).replace(/\n/g, "\n           ")}`,
   );
-  process.stderr.write("\nProceed? [y/N] ");
 
   const answer = await new Promise<string>((resolve) => {
     const rl = createInterface({
       input: process.stdin,
-      output: process.stderr,
+      output: process.stdout,
     });
-    rl.question("", (ans) => {
+    rl.question("\nProceed? [y/N] ", (ans) => {
       rl.close();
       resolve(ans.trim().toLowerCase());
     });

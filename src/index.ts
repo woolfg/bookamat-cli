@@ -39,6 +39,40 @@ function assertWritable(opts: { readOnly?: boolean }): void {
   }
 }
 
+/**
+ * When BOOKAMAT_CONFIRM=true, print what will be written and ask the user
+ * to type 'y' before proceeding. Any other input aborts.
+ */
+async function confirmWrite(action: string, payload: unknown): Promise<void> {
+  const needsConfirm =
+    process.env.BOOKAMAT_CONFIRM === "true" || program.opts().confirm;
+  if (!needsConfirm) return;
+
+  const { createInterface } = await import("readline");
+  console.error("\n⚠️  Confirm write operation:");
+  console.error(`   Action : ${action}`);
+  console.error(
+    `   Payload: ${JSON.stringify(payload, null, 2).replace(/\n/g, "\n           ")}`,
+  );
+  process.stderr.write("\nProceed? [y/N] ");
+
+  const answer = await new Promise<string>((resolve) => {
+    const rl = createInterface({
+      input: process.stdin,
+      output: process.stderr,
+    });
+    rl.question("", (ans) => {
+      rl.close();
+      resolve(ans.trim().toLowerCase());
+    });
+  });
+
+  if (answer !== "y") {
+    console.error("Aborted.");
+    process.exit(0);
+  }
+}
+
 /** Build a client, auto-resolving country/year if not supplied */
 async function getClient(opts: {
   apiKey?: string;
@@ -101,6 +135,10 @@ program
     "--read-only",
     "Read-only mode – any command that writes data will be rejected (or BOOKAMAT_READ_ONLY=true)",
   )
+  .option(
+    "--confirm",
+    "Ask for confirmation before every write operation (or BOOKAMAT_CONFIRM=true)",
+  )
   .option("--json", "Output raw JSON (machine-readable, ideal for LLMs)");
 
 // ---------------------------------------------------------------------------
@@ -112,7 +150,8 @@ const SCHEMA = {
     "bookamat-cli – CLI for the Bookamat accounting API. " +
     "Always pass --json for machine-readable output. " +
     "Read-only commands never modify data. " +
-    "Write commands are blocked when BOOKAMAT_READ_ONLY=true.",
+    "Write commands are blocked when BOOKAMAT_READ_ONLY=true. " +
+    "When BOOKAMAT_CONFIRM=true the user must approve each write before it is sent.",
   global_options: [
     {
       flag: "--api-key <key>",
@@ -135,6 +174,11 @@ const SCHEMA = {
     {
       flag: "--read-only",
       description: "Block all write commands (or BOOKAMAT_READ_ONLY=true)",
+    },
+    {
+      flag: "--confirm",
+      description:
+        "Ask for human approval before each write (or BOOKAMAT_CONFIRM=true)",
     },
     {
       flag: "--json",
@@ -462,7 +506,7 @@ bookingsCmd
       process.exit(1);
     }
 
-    const result = await client.createBooking({
+    const payload = {
       title: opts.title,
       date: opts.date,
       description: opts.description,
@@ -480,8 +524,10 @@ bookingsCmd
         country_dep: a.country_dep,
         country_rec: a.country_rec,
       })),
-    });
+    };
+    await confirmWrite("bookings create", payload);
 
+    const result = await client.createBooking(payload);
     output(result, !!g.json);
   });
 
@@ -510,6 +556,7 @@ bookingsCmd
       }
     }
 
+    await confirmWrite(`bookings update ${id}`, patch);
     const result = await client.updateBooking(parseInt(id), patch);
     output(result, !!g.json);
   });
@@ -521,6 +568,7 @@ bookingsCmd
     const g = program.opts();
     assertWritable(g);
     const client = await getClient(g);
+    await confirmWrite(`bookings delete`, { id: parseInt(id) });
     await client.deleteBooking(parseInt(id));
     const msg = { success: true, deleted_id: parseInt(id) };
     output(msg, !!g.json);
@@ -618,7 +666,7 @@ inventoriesCmd
     assertWritable(g);
     const client = await getClient(g);
 
-    const result = await client.createInventory({
+    const inventoryPayload = {
       title: opts.title,
       date_purchase: opts.datePurchase,
       date_commissioning: opts.dateCommissioning,
@@ -627,7 +675,9 @@ inventoriesCmd
       deductibility_type: parseInt(opts.type),
       costaccount: parseInt(opts.costaccount),
       description: opts.description,
-    });
+    };
+    await confirmWrite("inventories create", inventoryPayload);
+    const result = await client.createInventory(inventoryPayload);
 
     output(result, !!g.json);
   });
@@ -673,6 +723,10 @@ attachmentsCmd
     }
 
     const client = await getClient(g);
+    await confirmWrite("attachments upload", {
+      bookingId: parseInt(bookingId),
+      file: basename(filePath),
+    });
     const result = await client.uploadBookingAttachment(
       parseInt(bookingId),
       basename(filePath),

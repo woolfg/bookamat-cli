@@ -10,6 +10,8 @@ import {
   CostCentre,
   ForeignBusinessBase,
   Tag,
+  BookingTag,
+  CreateBookingTagRequest,
   Inventory,
   CreateInventoryRequest,
   Attachment,
@@ -51,12 +53,13 @@ export class BookamatClient {
   private async fetchAll<T>(url: string, params: any = {}): Promise<T[]> {
     const results: T[] = [];
     let nextUrl: string | null = url;
-    while (nextUrl) {
-      const response = await this.client.get<PaginatedResponse<T>>(nextUrl, {
-        params: nextUrl === url ? params : undefined,
-      });
+    while (nextUrl !== null) {
+      const currentUrl: string = nextUrl;
+      const response: import("axios").AxiosResponse<PaginatedResponse<T>> =
+        await this.client.get<PaginatedResponse<T>>(currentUrl, {
+          params: currentUrl === url ? params : undefined,
+        });
       results.push(...response.data.results);
-      // next is either a full URL or null
       nextUrl = response.data.next
         ? response.data.next.replace(this.baseUrl, "")
         : null;
@@ -192,6 +195,37 @@ export class BookamatClient {
       return;
     }
     await this.client.delete(this.getContextUrl(`bookings/${id}/`));
+  }
+
+  // --- Booking Tags ---
+
+  async listBookingTags(bookingId?: number): Promise<BookingTag[]> {
+    const params: any = {};
+    if (bookingId) params.booking = bookingId;
+    return this.fetchAll<BookingTag>(
+      this.getContextUrl("bookings/tags/"),
+      params,
+    );
+  }
+
+  async createBookingTag(data: CreateBookingTagRequest): Promise<BookingTag> {
+    if (this.readOnly) {
+      console.log(`[ReadOnly] createBookingTag: ${JSON.stringify(data)}`);
+      return { id: 999999, booking: data.booking, tag: data.tag, name: "mock" };
+    }
+    const response = await this.client.post<BookingTag>(
+      this.getContextUrl("bookings/tags/"),
+      data,
+    );
+    return response.data;
+  }
+
+  async deleteBookingTag(id: number): Promise<void> {
+    if (this.readOnly) {
+      console.log(`[ReadOnly] deleteBookingTag: ${id}`);
+      return;
+    }
+    await this.client.delete(this.getContextUrl(`bookings/tags/${id}/`));
   }
 
   // --- Inventories ---

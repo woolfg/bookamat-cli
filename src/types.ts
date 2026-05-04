@@ -64,6 +64,18 @@ export interface Tag {
   counter_booked_bookings?: number;
 }
 
+export interface BookingTag {
+  id: number;
+  booking: number;
+  tag: number;
+  name: string;
+}
+
+export interface CreateBookingTagRequest {
+  booking: number;
+  tag: number;
+}
+
 export interface BookingAmount {
   group?: "1" | "2";
   bankaccount: number | { id: number; name: string };
@@ -110,7 +122,6 @@ export interface CreateBookingRequest {
   vatin?: string;
   country?: string;
   description?: string;
-  tags?: number[];
   amounts: {
     bankaccount: number;
     costaccount: number;

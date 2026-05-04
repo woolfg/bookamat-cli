@@ -569,7 +569,7 @@ bookingsCmd
   .option("--costcentre <id>", "Cost centre ID")
   .option("--vatin <text>", "VAT identification number (max 20 chars)")
   .option("--country <cc>", "Country code of the business partner, e.g. DE")
-  .option("--tags <json>", "Array of tag IDs as JSON, e.g. '[5680,5681]'")
+  .option("--tags <json>", "Array of tag IDs as JSON, e.g. '[5680,5681]' (added via POST /bookings/tags/ after creation)")
   .option(
     "--amounts <json>",
     'Amounts array as JSON string, e.g. \'[{"bankaccount":1,"costaccount":2,"purchasetaxaccount":3,"amount":"100.00","tax_percent":"20.00"}]\'',
@@ -607,7 +607,6 @@ bookingsCmd
       costcentre: opts.costcentre ? parseInt(opts.costcentre) : undefined,
       ...(opts.vatin ? { vatin: opts.vatin } : {}),
       ...(opts.country ? { country: opts.country } : {}),
-      ...(tags ? { tags } : {}),
       amounts: amounts.map((a: any) => ({
         bankaccount: a.bankaccount,
         costaccount: a.costaccount,
@@ -627,7 +626,18 @@ bookingsCmd
     await confirmWrite("bookings create", payload);
 
     const result = await client.createBooking(payload);
-    output(result, !!g.json);
+
+    // Tags must be added via the separate /bookings/tags/ endpoint
+    if (tags && tags.length > 0) {
+      for (const tagId of tags) {
+        await client.createBookingTag({ booking: result.id, tag: tagId });
+      }
+      // Refresh booking to include the newly added tags
+      const refreshed = await client.getBooking(result.id);
+      output(refreshed, !!g.json);
+    } else {
+      output(result, !!g.json);
+    }
   });
 
 bookingsCmd
@@ -641,7 +651,7 @@ bookingsCmd
   .option("--description <text>")
   .option("--vatin <text>", "VAT identification number")
   .option("--country <cc>", "Country code of the business partner")
-  .option("--tags <json>", "Replace tags array, e.g. '[5680,5681]'")
+  .option("--tags <json>", "Replace tags, e.g. '[5680,5681]' — removes existing tags and adds the given ones via POST /bookings/tags/")
   .option("--amounts <json>", "Amounts array as JSON string")
   .action(async (id: string, opts) => {
     const g = program.opts();
@@ -674,9 +684,30 @@ bookingsCmd
       }
     }
 
+    // Extract tags from patch before sending to booking endpoint (they are read-only there)
+    const newTagIds: number[] | undefined = patch.tags;
+    delete patch.tags;
+
     await confirmWrite(`bookings update ${id}`, patch);
     const result = await client.updateBooking(parseInt(id), patch);
-    output(result, !!g.json);
+
+    // Handle tag replacement via the dedicated /bookings/tags/ endpoint
+    if (newTagIds !== undefined) {
+      const existing = await client.listBookingTags(parseInt(id));
+      // Delete all existing booking tags
+      for (const bt of existing) {
+        await client.deleteBookingTag(bt.id);
+      }
+      // Add the new ones
+      for (const tagId of newTagIds) {
+        await client.createBookingTag({ booking: parseInt(id), tag: tagId });
+      }
+      // Return refreshed booking
+      const refreshed = await client.getBooking(parseInt(id));
+      output(refreshed, !!g.json);
+    } else {
+      output(result, !!g.json);
+    }
   });
 
 bookingsCmd
@@ -691,6 +722,48 @@ bookingsCmd
     const msg = { success: true, deleted_id: parseInt(id) };
     output(msg, !!g.json);
     if (!g.json) console.log(`Booking ${id} deleted.`);
+  });
+
+const bookingTagsCmd = bookingsCmd
+  .command("tags")
+  .description("Manage tags on bookings (uses POST/DELETE /bookings/tags/)");
+
+bookingTagsCmd
+  .command("list")
+  .description("List booking-tag assignments")
+  .option("--booking <id>", "Filter by booking ID")
+  .action(async (opts) => {
+    const g = program.opts();
+    const client = await getClient(g);
+    const bookingId = opts.booking ? parseInt(opts.booking) : undefined;
+    const data = await client.listBookingTags(bookingId);
+    output(data, !!g.json);
+  });
+
+bookingTagsCmd
+  .command("add <booking-id> <tag-id>")
+  .description("Assign a tag to a booking")
+  .action(async (bookingId: string, tagId: string) => {
+    const g = program.opts();
+    assertWritable(g);
+    const client = await getClient(g);
+    const payload = { booking: parseInt(bookingId), tag: parseInt(tagId) };
+    await confirmWrite("bookings tags add", payload);
+    const result = await client.createBookingTag(payload);
+    output(result, !!g.json);
+  });
+
+bookingTagsCmd
+  .command("remove <booking-tag-id>")
+  .description("Remove a tag assignment from a booking (provide the booking-tag instance ID, not the tag ID)")
+  .action(async (id: string) => {
+    const g = program.opts();
+    assertWritable(g);
+    const client = await getClient(g);
+    await confirmWrite("bookings tags remove", { id: parseInt(id) });
+    await client.deleteBookingTag(parseInt(id));
+    const msg = { success: true, deleted_booking_tag_id: parseInt(id) };
+    output(msg, !!g.json);
   });
 
 // ---------------------------------------------------------------------------
